@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq, and, like, desc } from "drizzle-orm";
-import { createRouter, authedQuery, adminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
-import { applications } from "@db/schema";
+import { createRouter, authedQuery, adminQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import { applications } from "../db/schema.js";
 import { TRPCError } from "@trpc/server";
 
 function generateQuoteId(): string {

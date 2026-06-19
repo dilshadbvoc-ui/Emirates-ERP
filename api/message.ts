@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
-import { createRouter, authedQuery } from "./middleware";
-import { getDb } from "./queries/connection";
-import { messages } from "@db/schema";
+import { createRouter, authedQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import { messages } from "../db/schema.js";
 
 export const messageRouter = createRouter({
   create: authedQuery

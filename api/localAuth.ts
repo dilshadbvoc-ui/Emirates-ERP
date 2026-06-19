@@ -3,11 +3,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
-import { localUsers } from "@db/schema";
-import type { LocalUser } from "@db/schema";
-import { env } from "./lib/env";
+import { createRouter, publicQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import { localUsers } from "../db/schema.js";
+import type { LocalUser } from "../db/schema.js";
+import { env } from "./lib/env.js";
 
 const JWT_SECRET = env.localAuthSecret;
 

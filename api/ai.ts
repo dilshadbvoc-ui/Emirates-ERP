@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery } from "./middleware.js";
 
 const SYSTEM_PROMPT = `You are the IGCC Dubai Mainland License Assistant. You help users understand the mainland license application process in Dubai. You are knowledgeable about:
 

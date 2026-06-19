@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq, sql, desc } from "drizzle-orm";
-import { createRouter, adminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
-import { applications, users, localUsers } from "@db/schema";
+import { createRouter, adminQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import { applications, users, localUsers } from "../db/schema.js";
 
 export const adminRouter = createRouter({
   stats: adminQuery.query(async () => {

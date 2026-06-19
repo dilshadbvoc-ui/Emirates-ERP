@@ -1,6 +1,6 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { LocalUser } from "@db/schema";
-import { verifyLocalToken } from "./localAuth";
+import type { LocalUser } from "../db/schema.js";
+import { verifyLocalToken } from "./localAuth.js";
 
 export type UnifiedUser = {
   id: number;
@@ -8,7 +8,7 @@ export type UnifiedUser = {
   email?: string | null;
   avatar?: string | null;
   role: "user" | "admin";
-  authType: "local";
+  authType: "local" | "oauth";
 };
 
 export type TrpcContext = {

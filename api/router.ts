@@ -1,12 +1,12 @@
-import { authRouter } from "./auth-router";
-import { localAuthRouter } from "./localAuth";
-import { applicationRouter } from "./application";
-import { contactRouter } from "./contact";
-import { messageRouter } from "./message";
-import { adminRouter } from "./admin";
-import { userRouter } from "./user";
-import { aiRouter } from "./ai";
-import { createRouter, publicQuery } from "./middleware";
+import { authRouter } from "./auth-router.js";
+import { localAuthRouter } from "./localAuth.js";
+import { applicationRouter } from "./application.js";
+import { contactRouter } from "./contact.js";
+import { messageRouter } from "./message.js";
+import { adminRouter } from "./admin.js";
+import { userRouter } from "./user.js";
+import { aiRouter } from "./ai.js";
+import { createRouter, publicQuery } from "./middleware.js";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),

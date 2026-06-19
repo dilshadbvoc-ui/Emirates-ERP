@@ -15,4 +15,5 @@ export const env = {
   databaseUrl: required("DATABASE_URL"),
   ownerUnionId: process.env.OWNER_UNION_ID ?? "",
   localAuthSecret: process.env.LOCAL_AUTH_SECRET ?? "igcc-dubai-local-auth-secret-key-2025",
+  kimiOpenUrl: process.env.KIMI_OPEN_URL ?? "https://api.moonshot.cn",
 };

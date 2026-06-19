@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { createRouter, adminQuery, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
-import { services } from "@db/schema";
+import { createRouter, adminQuery, publicQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import { services } from "../db/schema.js";
 
 export const servicesRouter = createRouter({
   // Public: fetch all services & charges (for the Apply page)

@@ -1,8 +1,8 @@
 import * as cookie from "cookie";
-import { env } from "../lib/env";
-import { Session } from "@contracts/constants";
-import { Errors } from "@contracts/errors";
-import { verifyLocalToken } from "../localAuth";
+import { env } from "../lib/env.js";
+import { Session } from "../../contracts/constants.js";
+import { Errors } from "../../contracts/errors.js";
+import { verifyLocalToken } from "../localAuth.js";
 
 /**
  * authenticateRequest – JWT-only auth (no external Kimi OAuth).
