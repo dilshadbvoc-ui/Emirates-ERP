@@ -11,7 +11,9 @@ export const contactRouter = createRouter({
         name: z.string().min(2, "Name must be at least 2 characters"),
         email: z.string().email("Invalid email address"),
         phone: z.string().optional(),
-        message: z.string().min(10, "Message must be at least 10 characters"),
+        companyName: z.string().optional(),
+        message: z.string().min(10, "Message must be at least 10 characters").optional(),
+        source: z.enum(["contact_form", "apply_wizard"]).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -20,7 +22,9 @@ export const contactRouter = createRouter({
         name: input.name,
         email: input.email,
         phone: input.phone || null,
-        message: input.message,
+        companyName: input.companyName || null,
+        message: input.message || null,
+        source: input.source || "contact_form",
       });
       return { success: true, id: Number(result[0].insertId) };
     }),

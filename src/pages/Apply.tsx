@@ -14,6 +14,7 @@ import {
   Loader2,
   Download,
   Quote,
+  Phone,
 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,8 +28,9 @@ const steps = [
   { number: 2, title: "Activity" },
   { number: 3, title: "Legal Structure" },
   { number: 4, title: "Partners" },
-  { number: 5, title: "Trade Name & Office" },
-  { number: 6, title: "Quote" },
+  { number: 5, title: "Your Details" },
+  { number: 6, title: "Trade Name & Office" },
+  { number: 7, title: "Quote" },
 ];
 
 const activityTypes = [
@@ -140,6 +142,19 @@ export default function Apply() {
     employmentVisaCount: 0,
   });
   const [quoteResult, setQuoteResult] = useState<{ id: number; quoteId: string } | null>(null);
+  const [leadCaptured, setLeadCaptured] = useState(false);
+  const [leadForm, setLeadForm] = useState({
+    name: "",
+    mobile: "",
+    email: "",
+    companyName: "",
+  });
+
+  const submitLead = trpc.contact.submit.useMutation({
+    onSuccess: () => {
+      setLeadCaptured(true);
+    },
+  });
 
   const createApp = trpc.application.create.useMutation({
     onSuccess: (data) => {
@@ -157,7 +172,8 @@ export default function Apply() {
       case 1: return !!form.activity;
       case 2: return !!form.legalStructure;
       case 3: return !!form.partnerCount;
-      case 4: return !!form.officeType;
+      case 4: return leadCaptured;
+      case 5: return !!form.officeType;
       default: return true;
     }
   };
@@ -204,7 +220,7 @@ export default function Apply() {
             >
               Mainland License Application
             </h1>
-            <p className="text-[#94a3b8]">Complete the 6-step wizard to get your customized quote</p>
+            <p className="text-[#94a3b8]">Complete the 7-step wizard to get your customized quote</p>
           </motion.div>
 
           {/* Step Indicator */}
@@ -349,8 +365,134 @@ export default function Apply() {
                 </div>
               )}
 
-              {/* Step 5: Trade Name & Office */}
+              {/* Step 5: Lead Capture */}
               {currentStep === 4 && (
+                <div>
+                  <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Almost There</h2>
+                  <p className="text-sm text-[#94a3b8] mb-8">
+                    Share your details so we can send your quote and follow up with next steps.
+                  </p>
+
+                  {leadCaptured ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-[#0a1628] border border-[#22c55e]/30 rounded-2xl p-8 text-center"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-[#22c55e]/20 flex items-center justify-center mx-auto mb-4">
+                        <Check className="w-6 h-6 text-[#22c55e]" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-[#f0f0f0] mb-1">Details Saved</h3>
+                      <p className="text-sm text-[#94a3b8] mb-6">
+                        Thanks, {leadForm.name.split(" ")[0]}! Click <span className="text-[#f0f0f0] font-medium">Next</span> to see your pricing, or request a callback below.
+                      </p>
+                      <button
+                        onClick={() => window.location.href = "/#contact"}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 border border-[#c9a96e]/30 text-[#c9a96e] text-sm font-medium rounded-xl hover:bg-[#c9a96e]/5 transition-colors"
+                      >
+                        <Phone className="w-4 h-4" /> Request a Callback Instead
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-[#94a3b8] mb-1.5">
+                            Full Name <span className="text-[#c9a96e]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="John Smith"
+                            value={leadForm.name}
+                            onChange={(e) => setLeadForm((p) => ({ ...p, name: e.target.value }))}
+                            className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#c9a96e]/40 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-[#94a3b8] mb-1.5">
+                            Mobile Number <span className="text-[#c9a96e]">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            placeholder="+971 50 000 0000"
+                            value={leadForm.mobile}
+                            onChange={(e) => setLeadForm((p) => ({ ...p, mobile: e.target.value }))}
+                            className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#c9a96e]/40 transition-colors"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[#94a3b8] mb-1.5">
+                          Email Address <span className="text-[#c9a96e]">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="john@example.com"
+                          value={leadForm.email}
+                          onChange={(e) => setLeadForm((p) => ({ ...p, email: e.target.value }))}
+                          className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#c9a96e]/40 transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[#94a3b8] mb-1.5">
+                          Company Name <span className="text-[#64748b] font-normal">(optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Your existing or planned company name"
+                          value={leadForm.companyName}
+                          onChange={(e) => setLeadForm((p) => ({ ...p, companyName: e.target.value }))}
+                          className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#c9a96e]/40 transition-colors"
+                        />
+                      </div>
+
+                      {submitLead.isError && (
+                        <p className="text-xs text-red-400">Something went wrong. Please try again.</p>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        <button
+                          onClick={() => {
+                            if (!leadForm.name.trim() || !leadForm.mobile.trim() || !leadForm.email.trim()) return;
+                            submitLead.mutate({
+                              name: leadForm.name.trim(),
+                              phone: leadForm.mobile.trim(),
+                              email: leadForm.email.trim(),
+                              companyName: leadForm.companyName.trim() || undefined,
+                              source: "apply_wizard",
+                            });
+                          }}
+                          disabled={
+                            submitLead.isPending ||
+                            !leadForm.name.trim() ||
+                            !leadForm.mobile.trim() ||
+                            !leadForm.email.trim()
+                          }
+                          className="flex-1 py-3.5 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                        >
+                          {submitLead.isPending ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                          ) : (
+                            "Continue to Pricing"
+                          )}
+                        </button>
+                        <button
+                          onClick={() => window.location.href = "/#contact"}
+                          className="sm:flex-none px-6 py-3.5 border border-[#c9a96e]/25 text-[#c9a96e] text-sm font-medium rounded-xl hover:bg-[#c9a96e]/5 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Phone className="w-4 h-4" /> Request a Callback
+                        </button>
+                      </div>
+                      <p className="text-xs text-[#64748b] text-center">
+                        We'll never share your details with third parties.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 6: Trade Name & Office */}
+              {currentStep === 5 && (
                 <div className="space-y-8">
                   <div>
                     <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Trade Name & Office Setup</h2>
@@ -415,8 +557,8 @@ export default function Apply() {
                 </div>
               )}
 
-              {/* Step 6: Quote Summary */}
-              {currentStep === 5 && (
+              {/* Step 7: Quote Summary */}
+              {currentStep === 6 && (
                 <div>
                   {!quoteResult ? (
                     <>
@@ -575,9 +717,9 @@ export default function Apply() {
               >
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
-              {currentStep < 5 && (
+              {currentStep < 6 && (
                 <button
-                  onClick={() => setCurrentStep((s) => Math.min(5, s + 1))}
+                  onClick={() => setCurrentStep((s) => Math.min(6, s + 1))}
                   disabled={!canProceed()}
                   className="flex items-center gap-2 px-6 py-3 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
