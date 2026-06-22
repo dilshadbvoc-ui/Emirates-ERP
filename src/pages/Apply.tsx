@@ -22,97 +22,17 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AIAssistant from "@/components/AIAssistant";
 
-// Step definitions
-const steps = [
-  { number: 1, title: "Activity Type" },
-  { number: 2, title: "Activity" },
-  { number: 3, title: "Legal Structure" },
-  { number: 4, title: "Partners" },
-  { number: 5, title: "Your Details" },
-  { number: 6, title: "Trade Name & Office" },
-  { number: 7, title: "Quote" },
-];
-
-const activityTypes = [
-  {
-    id: "professional" as const,
-    title: "Professional",
-    description: "Consultancies, IT services, marketing, HR, accounting",
-    icon: Briefcase,
-  },
-  {
-    id: "commercial" as const,
-    title: "Commercial",
-    description: "Trading, import/export, retail, e-commerce",
-    icon: ShoppingCart,
-  },
-  {
-    id: "industrial" as const,
-    title: "Industrial",
-    description: "Manufacturing, assembly, packaging, processing",
-    icon: Factory,
-  },
-];
-
-const activities: Record<string, string[]> = {
-  professional: [
-    "Management Consultancy",
-    "IT Services",
-    "Marketing Services",
-    "HR Consultancy",
-    "Accounting & Bookkeeping",
-    "Educational Services",
-  ],
-  commercial: [
-    "General Trading",
-    "Import & Export",
-    "Retail Trading",
-    "E-Commerce",
-    "Wholesale Trading",
-    "Foodstuff Trading",
-  ],
-  industrial: [
-    "Manufacturing",
-    "Assembly & Production",
-    "Packaging",
-    "Processing Industries",
-    "Factory Operations",
-  ],
+// Icon map for activity types (by id)
+const activityTypeIcons: Record<string, typeof Briefcase> = {
+  professional: Briefcase,
+  commercial: ShoppingCart,
+  industrial: Factory,
 };
-
-const legalStructures = [
-  {
-    id: "llc" as const,
-    title: "LLC",
-    description: "Limited Liability Company, most common structure",
-    icon: Building2,
-  },
-  {
-    id: "branch" as const,
-    title: "Branch",
-    description: "Branch of an existing foreign company",
-    icon: Monitor,
-  },
-  {
-    id: "sole_establishment" as const,
-    title: "Sole Establishment",
-    description: "Owned by a single individual",
-    icon: HardHat,
-  },
-];
-
-const partnerOptions = [
-  { id: "single" as const, label: "Single Owner" },
-  { id: "two" as const, label: "2 Partners" },
-  { id: "three" as const, label: "3 Partners" },
-  { id: "four_plus" as const, label: "4+ Partners" },
-];
-
-const officeTypes = [
-  { id: "virtual" as const, label: "Virtual Office", desc: "Cost-effective remote solution" },
-  { id: "physical" as const, label: "Physical Office", desc: "Dedicated office space" },
-  { id: "sharing" as const, label: "Sharing Office", desc: "Shared workspace" },
-];
+const legalStructureIcons: Record<string, typeof Building2> = {
+  llc: Building2,
+  branch: Monitor,
+  sole_establishment: HardHat,
+};
 
 interface FormData {
   activityType: "professional" | "commercial" | "industrial" | "";
@@ -150,6 +70,30 @@ export default function Apply() {
     companyName: "",
   });
 
+  // ── Load config from DB ───────────────────────────────────────────────────
+  const { data: wizardConfig, isLoading: wizardLoading } = trpc.services.getWizardConfig.useQuery();
+  const { data: pricingConfig } = trpc.services.getPricingConfig.useQuery();
+
+  // Derive all wizard options from DB config (with sensible fallbacks)
+  const enabledSteps = wizardConfig
+    ? [...wizardConfig.steps].filter((s) => s.enabled).sort((a, b) => a.order - b.order)
+    : [];
+  const steps = enabledSteps.map((s, i) => ({ number: i + 1, title: s.title, type: s.type }));
+  const totalSteps = steps.length;
+
+  const activityTypes = (wizardConfig?.activityTypes ?? []).filter((t) => t.enabled);
+  const activities: Record<string, { id: string; label: string }[]> = (wizardConfig?.activities ?? {}) as Record<string, { id: string; label: string }[]>;
+  const legalStructures = (wizardConfig?.legalStructures ?? []).filter((l) => l.enabled);
+  const partnerOptions = (wizardConfig?.partnerOptions ?? []).filter((p) => p.enabled);
+  const officeTypes = (wizardConfig?.officeTypes ?? []).filter((o) => o.enabled);
+
+  const baseCost          = pricingConfig?.baseCost          ?? 3414;
+  const englishNameFee    = pricingConfig?.englishNameFee    ?? 2000;
+  const investorVisaFee   = pricingConfig?.investorVisaFee   ?? 4000;
+  const employmentVisaFee = pricingConfig?.employmentVisaFee ?? 3000;
+
+  const currentStepType = steps[currentStep]?.type ?? "";
+
   const submitLead = trpc.contact.submit.useMutation({
     onSuccess: () => {
       setLeadCaptured(true);
@@ -167,14 +111,14 @@ export default function Apply() {
   };
 
   const canProceed = () => {
-    switch (currentStep) {
-      case 0: return !!form.activityType;
-      case 1: return !!form.activity;
-      case 2: return !!form.legalStructure;
-      case 3: return !!form.partnerCount;
-      case 4: return leadCaptured;
-      case 5: return !!form.officeType;
-      default: return true;
+    switch (currentStepType) {
+      case "activity_type":   return !!form.activityType;
+      case "activity":        return !!form.activity;
+      case "legal_structure": return !!form.legalStructure;
+      case "partners":        return !!form.partnerCount;
+      case "lead_capture":    return leadCaptured;
+      case "trade_office":    return !!form.officeType;
+      default:                return true;
     }
   };
 
@@ -196,16 +140,20 @@ export default function Apply() {
     });
   };
 
-  const baseCost = 3414;
-  const englishNameFee = form.tradeNameLanguage === "english" ? 2000 : 0;
-  const investorVisaFee = form.investorVisa ? 4000 : 0;
-  const employmentVisaFee = form.employmentVisaCount * 3000;
-  const totalCost = baseCost + englishNameFee + investorVisaFee + employmentVisaFee;
+  const englishFee    = form.tradeNameLanguage === "english" ? englishNameFee : 0;
+  const investorFee   = form.investorVisa ? investorVisaFee : 0;
+  const employmentFee = form.employmentVisaCount * employmentVisaFee;
+  const totalCost     = baseCost + englishFee + investorFee + employmentFee;
 
   return (
     <div className="min-h-screen bg-[#0a1628]">
       <Navbar />
 
+      {wizardLoading ? (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-[#c9a96e] animate-spin" />
+        </div>
+      ) : (
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
@@ -220,7 +168,7 @@ export default function Apply() {
             >
               Mainland License Application
             </h1>
-            <p className="text-[#94a3b8]">Complete the 7-step wizard to get your customized quote</p>
+            <p className="text-[#94a3b8]">Complete the {totalSteps}-step wizard to get your customized quote</p>
           </motion.div>
 
           {/* Step Indicator */}
@@ -269,81 +217,87 @@ export default function Apply() {
               transition={{ duration: 0.3 }}
               className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-6 sm:p-10"
             >
-              {/* Step 1: Activity Type */}
-              {currentStep === 0 && (
+              {/* Step: Activity Type */}
+              {currentStepType === "activity_type" && (
                 <div>
                   <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Choose Activity Type</h2>
                   <p className="text-sm text-[#94a3b8] mb-8">Select the category that best describes your business</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {activityTypes.map((type) => (
-                      <button
-                        key={type.id}
-                        onClick={() => updateForm({ activityType: type.id, activity: "" })}
-                        className={`p-6 rounded-xl border-2 text-center transition-all duration-300 ${
-                          form.activityType === type.id
-                            ? "border-[#c9a96e] bg-[#152238] shadow-lg shadow-[#c9a96e]/10"
-                            : "border-[#c9a96e]/15 bg-[#0a1628] hover:border-[#c9a96e]/30"
-                        }`}
-                      >
-                        <type.icon className="w-10 h-10 text-[#c9a96e] mx-auto mb-3" />
-                        <h3 className="text-base font-semibold text-[#f0f0f0] mb-1">{type.title}</h3>
-                        <p className="text-xs text-[#94a3b8]">{type.description}</p>
-                      </button>
-                    ))}
+                    {activityTypes.map((type) => {
+                      const Icon = activityTypeIcons[type.id] ?? Briefcase;
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => updateForm({ activityType: type.id as FormData["activityType"], activity: "" })}
+                          className={`p-6 rounded-xl border-2 text-center transition-all duration-300 ${
+                            form.activityType === type.id
+                              ? "border-[#c9a96e] bg-[#152238] shadow-lg shadow-[#c9a96e]/10"
+                              : "border-[#c9a96e]/15 bg-[#0a1628] hover:border-[#c9a96e]/30"
+                          }`}
+                        >
+                          <Icon className="w-10 h-10 text-[#c9a96e] mx-auto mb-3" />
+                          <h3 className="text-base font-semibold text-[#f0f0f0] mb-1">{type.title}</h3>
+                          <p className="text-xs text-[#94a3b8]">{type.description}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Step 2: Activity */}
-              {currentStep === 1 && (
+              {/* Step: Activity */}
+              {currentStepType === "activity" && (
                 <div>
                   <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Choose Activity</h2>
                   <p className="text-sm text-[#94a3b8] mb-8">Select your specific business activity</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {activities[form.activityType]?.map((activity) => (
+                    {(activities[form.activityType] ?? []).map((activity) => (
                       <button
-                        key={activity}
-                        onClick={() => updateForm({ activity })}
+                        key={activity.id}
+                        onClick={() => updateForm({ activity: activity.label })}
                         className={`p-4 rounded-lg border text-left transition-all duration-300 ${
-                          form.activity === activity
+                          form.activity === activity.label
                             ? "border-[#c9a96e] bg-[#c9a96e]/10"
                             : "border-[#c9a96e]/10 bg-[#0a1628] hover:border-[#c9a96e]/25"
                         }`}
                       >
-                        <span className="text-sm font-medium text-[#f0f0f0]">{activity}</span>
+                        <span className="text-sm font-medium text-[#f0f0f0]">{activity.label}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Step 3: Legal Structure */}
-              {currentStep === 2 && (
+              {/* Step: Legal Structure */}
+              {currentStepType === "legal_structure" && (
                 <div>
                   <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Choose Legal Structure</h2>
                   <p className="text-sm text-[#94a3b8] mb-8">Select the legal structure for your business</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {legalStructures.map((ls) => (
-                      <button
-                        key={ls.id}
-                        onClick={() => updateForm({ legalStructure: ls.id })}
-                        className={`p-6 rounded-xl border-2 text-center transition-all duration-300 ${
-                          form.legalStructure === ls.id
-                            ? "border-[#c9a96e] bg-[#152238] shadow-lg shadow-[#c9a96e]/10"
-                            : "border-[#c9a96e]/15 bg-[#0a1628] hover:border-[#c9a96e]/30"
-                        }`}
-                      >
-                        <ls.icon className="w-10 h-10 text-[#c9a96e] mx-auto mb-3" />
-                        <h3 className="text-base font-semibold text-[#f0f0f0] mb-1">{ls.title}</h3>
-                        <p className="text-xs text-[#94a3b8]">{ls.description}</p>
-                      </button>
-                    ))}
+                    {legalStructures.map((ls) => {
+                      const Icon = legalStructureIcons[ls.id] ?? Building2;
+                      return (
+                        <button
+                          key={ls.id}
+                          onClick={() => updateForm({ legalStructure: ls.id as FormData["legalStructure"] })}
+                          className={`p-6 rounded-xl border-2 text-center transition-all duration-300 ${
+                            form.legalStructure === ls.id
+                              ? "border-[#c9a96e] bg-[#152238] shadow-lg shadow-[#c9a96e]/10"
+                              : "border-[#c9a96e]/15 bg-[#0a1628] hover:border-[#c9a96e]/30"
+                          }`}
+                        >
+                          <Icon className="w-10 h-10 text-[#c9a96e] mx-auto mb-3" />
+                          <h3 className="text-base font-semibold text-[#f0f0f0] mb-1">{ls.title}</h3>
+                          <p className="text-xs text-[#94a3b8]">{ls.description}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Step 4: Partners */}
-              {currentStep === 3 && (
+              {/* Step: Partners */}
+              {currentStepType === "partners" && (
                 <div>
                   <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Number of Partners</h2>
                   <p className="text-sm text-[#94a3b8] mb-8">How many shareholders or partners will you have?</p>
@@ -351,7 +305,7 @@ export default function Apply() {
                     {partnerOptions.map((option) => (
                       <button
                         key={option.id}
-                        onClick={() => updateForm({ partnerCount: option.id })}
+                        onClick={() => updateForm({ partnerCount: option.id as FormData["partnerCount"] })}
                         className={`px-8 py-4 rounded-full border-2 font-medium transition-all duration-300 ${
                           form.partnerCount === option.id
                             ? "border-[#c9a96e] bg-[#c9a96e] text-[#0a1628]"
@@ -365,8 +319,8 @@ export default function Apply() {
                 </div>
               )}
 
-              {/* Step 5: Lead Capture */}
-              {currentStep === 4 && (
+              {/* Step: Lead Capture */}
+              {currentStepType === "lead_capture" && (
                 <div>
                   <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Almost There</h2>
                   <p className="text-sm text-[#94a3b8] mb-8">
@@ -491,8 +445,8 @@ export default function Apply() {
                 </div>
               )}
 
-              {/* Step 6: Trade Name & Office */}
-              {currentStep === 5 && (
+              {/* Step: Trade Name & Office */}
+              {currentStepType === "trade_office" && (
                 <div className="space-y-8">
                   <div>
                     <h2 className="text-xl font-semibold text-[#f0f0f0] mb-2">Trade Name & Office Setup</h2>
@@ -527,7 +481,7 @@ export default function Apply() {
                         >
                           <span className="text-sm font-medium text-[#f0f0f0] capitalize">{lang}</span>
                           {lang === "english" && (
-                            <span className="block text-xs text-[#c9a96e] mt-1">+ AED 2,000</span>
+                            <span className="block text-xs text-[#c9a96e] mt-1">+ AED {englishNameFee.toLocaleString()}</span>
                           )}
                         </button>
                       ))}
@@ -541,7 +495,7 @@ export default function Apply() {
                       {officeTypes.map((office) => (
                         <button
                           key={office.id}
-                          onClick={() => updateForm({ officeType: office.id })}
+                          onClick={() => updateForm({ officeType: office.id as FormData["officeType"] })}
                           className={`p-4 rounded-lg border-2 text-center transition-all duration-300 ${
                             form.officeType === office.id
                               ? "border-[#c9a96e] bg-[#152238]"
@@ -557,8 +511,8 @@ export default function Apply() {
                 </div>
               )}
 
-              {/* Step 7: Quote Summary */}
-              {currentStep === 6 && (
+              {/* Step: Quote Summary */}
+              {currentStepType === "quote" && (
                 <div>
                   {!quoteResult ? (
                     <>
@@ -571,11 +525,9 @@ export default function Apply() {
                           { label: "Activity Type", value: form.activityType?.charAt(0).toUpperCase() + form.activityType?.slice(1) },
                           { label: "Activity", value: form.activity },
                           { label: "Legal Structure", value: form.legalStructure?.replace("_", " ").toUpperCase() },
-                          { label: "Partners", value: partnerOptions.find((p) => p.id === form.partnerCount)?.label },
-                          { label: "Trade Name", value: form.tradeName || "Not specified" },
-                          { label: "Trade Name Language", value: form.tradeNameLanguage?.charAt(0).toUpperCase() + form.tradeNameLanguage?.slice(1) + (form.tradeNameLanguage === "english" ? " (+AED 2,000)" : " (No extra fee)") },
-                          { label: "Office Type", value: officeTypes.find((o) => o.id === form.officeType)?.label },
-                        ].map((item) => (
+                          { label: "Partners", value: partnerOptions.find((p) => p.id === form.partnerCount)?.label },                          { label: "Trade Name", value: form.tradeName || "Not specified" },
+                          { label: "Trade Name Language", value: form.tradeNameLanguage?.charAt(0).toUpperCase() + form.tradeNameLanguage?.slice(1) + (form.tradeNameLanguage === "english" ? ` (+AED ${englishNameFee.toLocaleString()})` : " (No extra fee)") },
+                          { label: "Office Type", value: officeTypes.find((o) => o.id === form.officeType)?.label },                        ].map((item) => (
                           <div key={item.label} className="flex justify-between py-2 border-b border-[#c9a96e]/10">
                             <span className="text-sm text-[#94a3b8]">{item.label}</span>
                             <span className="text-sm text-[#f0f0f0] font-medium">{item.value}</span>
@@ -589,7 +541,7 @@ export default function Apply() {
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="text-sm text-[#f0f0f0]">Investor Visa</span>
-                            <span className="block text-xs text-[#94a3b8]">+ AED 4,000</span>
+                            <span className="block text-xs text-[#94a3b8]">+ AED {investorVisaFee.toLocaleString()}</span>
                           </div>
                           <button
                             onClick={() => updateForm({ investorVisa: !form.investorVisa })}
@@ -623,7 +575,7 @@ export default function Apply() {
                           </div>
                         </div>
                         {form.employmentVisaCount > 0 && (
-                          <span className="text-xs text-[#94a3b8]">+ AED {form.employmentVisaCount * 3000} for employment visas</span>
+                          <span className="text-xs text-[#94a3b8]">+ AED {(form.employmentVisaCount * employmentVisaFee).toLocaleString()} for employment visas</span>
                         )}
                       </div>
 
@@ -717,9 +669,9 @@ export default function Apply() {
               >
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
-              {currentStep < 6 && (
+              {currentStep < totalSteps - 1 && (
                 <button
-                  onClick={() => setCurrentStep((s) => Math.min(6, s + 1))}
+                  onClick={() => setCurrentStep((s) => Math.min(totalSteps - 1, s + 1))}
                   disabled={!canProceed()}
                   className="flex items-center gap-2 px-6 py-3 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
@@ -730,6 +682,7 @@ export default function Apply() {
           )}
         </div>
       </div>
+      )} {/* end wizardLoading else */}
 
       <Footer />
       <AIAssistant />

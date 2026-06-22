@@ -14,6 +14,16 @@ import {
   Search,
   Send,
   User,
+  DollarSign,
+  Settings,
+  Plus,
+  Trash2,
+  GripVertical,
+  Save,
+  ToggleLeft,
+  ToggleRight,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,7 +45,7 @@ const statusLabels: Record<string, string> = {
   rejected: "Rejected",
 };
 
-type Tab = "dashboard" | "applications" | "users" | "contacts" | "messages";
+type Tab = "dashboard" | "applications" | "users" | "contacts" | "messages" | "pricing" | "wizard";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -75,6 +85,35 @@ export default function Admin() {
     // Will be refetched automatically by invalidation
   }
 
+  // ── Pricing ──────────────────────────────────────────────────────────────
+  const { data: pricingData, refetch: refetchPricing } = trpc.services.getPricingConfig.useQuery(
+    undefined, { enabled: isAdmin && activeTab === "pricing" }
+  );
+  const [pricing, setPricing] = useState({ baseCost: 3414, englishNameFee: 2000, investorVisaFee: 4000, employmentVisaFee: 3000 });
+  const [pricingSaved, setPricingSaved] = useState(false);
+  const savePricing = trpc.services.savePricingConfig.useMutation({
+    onSuccess: () => { setPricingSaved(true); refetchPricing(); setTimeout(() => setPricingSaved(false), 2000); },
+  });
+
+  // Sync pricing state when data loads
+  if (pricingData && pricing.baseCost === 3414 && pricingData.baseCost !== 3414) {
+    setPricing(pricingData);
+  }
+
+  // ── Wizard Config ─────────────────────────────────────────────────────────
+  const { data: wizardData, refetch: refetchWizard } = trpc.services.getWizardConfig.useQuery(
+    undefined, { enabled: isAdmin && activeTab === "wizard" }
+  );
+  const [wizard, setWizard] = useState<typeof wizardData | null>(null);
+  const [wizardSaved, setWizardSaved] = useState(false);
+  const [expandedType, setExpandedType] = useState<string | null>("professional");
+  const [newActivity, setNewActivity] = useState<Record<string, string>>({});
+  const saveWizard = trpc.services.saveWizardConfig.useMutation({
+    onSuccess: () => { setWizardSaved(true); refetchWizard(); setTimeout(() => setWizardSaved(false), 2000); },
+  });
+
+  const activeWizard = wizard ?? wizardData;
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#0a1628] flex items-center justify-center">
@@ -102,11 +141,13 @@ export default function Admin() {
   }
 
   const tabs: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "dashboard",    label: "Dashboard",    icon: LayoutDashboard },
     { id: "applications", label: "Applications", icon: FileText },
-    { id: "users", label: "Users", icon: Users },
-    { id: "contacts", label: "Contacts", icon: MessageSquare },
-    { id: "messages", label: "Messages", icon: Send },
+    { id: "users",        label: "Users",        icon: Users },
+    { id: "contacts",     label: "Leads",        icon: MessageSquare },
+    { id: "messages",     label: "Messages",     icon: Send },
+    { id: "pricing",      label: "Pricing",      icon: DollarSign },
+    { id: "wizard",       label: "Wizard Config", icon: Settings },
   ];
 
   return (
@@ -344,6 +385,8 @@ export default function Admin() {
                       <th className="p-4">Name</th>
                       <th className="p-4">Email</th>
                       <th className="p-4">Phone</th>
+                      <th className="p-4">Company</th>
+                      <th className="p-4">Source</th>
                       <th className="p-4">Message</th>
                       <th className="p-4">Date</th>
                     </tr>
@@ -353,8 +396,14 @@ export default function Admin() {
                       <tr key={c.id} className="border-b border-[#c9a96e]/5 hover:bg-[#152238]">
                         <td className="p-4 text-sm text-[#f0f0f0]">{c.name}</td>
                         <td className="p-4 text-sm text-[#c9a96e]">{c.email}</td>
-                        <td className="p-4 text-sm text-[#94a3b8]">{c.phone || "N/A"}</td>
-                        <td className="p-4 text-sm text-[#94a3b8] max-w-xs truncate">{c.message}</td>
+                        <td className="p-4 text-sm text-[#94a3b8]">{c.phone || "—"}</td>
+                        <td className="p-4 text-sm text-[#94a3b8]">{c.companyName || "—"}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-xs ${c.source === "apply_wizard" ? "bg-[#c9a96e]/20 text-[#c9a96e]" : "bg-[#1e3a5f] text-[#94a3b8]"}`}>
+                            {c.source === "apply_wizard" ? "Wizard" : "Contact Form"}
+                          </span>
+                        </td>
+                        <td className="p-4 text-sm text-[#94a3b8] max-w-xs truncate">{c.message || "—"}</td>
                         <td className="p-4 text-sm text-[#64748b]">{new Date(c.createdAt).toLocaleDateString()}</td>
                       </tr>
                     ))}
@@ -464,6 +513,319 @@ export default function Admin() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+          {/* Pricing Tab */}
+          {activeTab === "pricing" && (
+            <div className="space-y-6 max-w-2xl">
+              <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-6 space-y-5">
+                <h2 className="text-lg font-semibold text-[#f0f0f0]">License Pricing (AED)</h2>
+                {[
+                  { key: "baseCost",          label: "Base License Cost",          desc: "Core government and registration fees" },
+                  { key: "englishNameFee",     label: "English Trade Name Fee",     desc: "Additional fee for English name" },
+                  { key: "investorVisaFee",    label: "Investor Visa Fee",          desc: "Per investor visa" },
+                  { key: "employmentVisaFee",  label: "Employment Visa Fee",        desc: "Per employment visa" },
+                ].map(({ key, label, desc }) => (
+                  <div key={key}>
+                    <label className="block text-sm font-medium text-[#f0f0f0] mb-1">{label}</label>
+                    <p className="text-xs text-[#64748b] mb-2">{desc}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#94a3b8]">AED</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={pricing[key as keyof typeof pricing]}
+                        onChange={(e) => setPricing((p) => ({ ...p, [key]: Number(e.target.value) }))}
+                        className="w-40 bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <div className="pt-2 border-t border-[#c9a96e]/10">
+                  <div className="flex items-center justify-between text-sm text-[#94a3b8] mb-1">
+                    <span>Sample total (1 investor visa + 2 employment visas):</span>
+                    <span className="text-[#c9a96e] font-semibold">
+                      AED {(pricing.baseCost + pricing.englishNameFee + pricing.investorVisaFee + pricing.employmentVisaFee * 2).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => savePricing.mutate(pricing)}
+                  disabled={savePricing.isPending}
+                  className="flex items-center gap-2 px-6 py-3 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-50 transition-colors"
+                >
+                  {savePricing.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {pricingSaved ? "Saved!" : "Save Pricing"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Wizard Config Tab */}
+          {activeTab === "wizard" && activeWizard && (
+            <div className="space-y-6">
+
+              {/* Steps order & visibility */}
+              <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-[#f0f0f0] mb-4">Wizard Steps</h2>
+                <p className="text-xs text-[#64748b] mb-4">Toggle steps on/off. The lead capture, trade name, and quote steps are core and always shown.</p>
+                <div className="space-y-2">
+                  {[...activeWizard.steps].sort((a, b) => a.order - b.order).map((step) => {
+                    const isCore = ["lead_capture", "trade_office", "quote"].includes(step.type);
+                    return (
+                      <div key={step.id} className="flex items-center justify-between p-3 bg-[#0a1628] rounded-lg border border-[#c9a96e]/8">
+                        <div className="flex items-center gap-3">
+                          <GripVertical className="w-4 h-4 text-[#64748b]" />
+                          <span className="text-sm text-[#f0f0f0]">{step.title}</span>
+                          {isCore && <span className="text-xs text-[#64748b] bg-[#1e3a5f] px-2 py-0.5 rounded-full">core</span>}
+                        </div>
+                        <button
+                          disabled={isCore}
+                          onClick={() => {
+                            const updated = { ...activeWizard, steps: activeWizard.steps.map((s) => s.id === step.id ? { ...s, enabled: !s.enabled } : s) };
+                            setWizard(updated);
+                          }}
+                          className="disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {step.enabled
+                            ? <ToggleRight className="w-7 h-7 text-[#c9a96e]" />
+                            : <ToggleLeft  className="w-7 h-7 text-[#64748b]" />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Activity Types */}
+              <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-[#f0f0f0] mb-4">Activity Types</h2>
+                <div className="space-y-3">
+                  {activeWizard.activityTypes.map((at) => (
+                    <div key={at.id} className="p-4 bg-[#0a1628] rounded-xl border border-[#c9a96e]/8 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setExpandedType(expandedType === at.id ? null : at.id)}
+                            className="text-[#94a3b8] hover:text-[#f0f0f0]"
+                          >
+                            {expandedType === at.id ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          </button>
+                          <input
+                            value={at.title}
+                            onChange={(e) => {
+                              const updated = { ...activeWizard, activityTypes: activeWizard.activityTypes.map((t) => t.id === at.id ? { ...t, title: e.target.value } : t) };
+                              setWizard(updated);
+                            }}
+                            className="bg-transparent border-b border-[#c9a96e]/20 text-[#f0f0f0] text-sm font-medium focus:outline-none focus:border-[#c9a96e]/50 w-40"
+                          />
+                        </div>
+                        <button
+                          onClick={() => {
+                            const updated = { ...activeWizard, activityTypes: activeWizard.activityTypes.map((t) => t.id === at.id ? { ...t, enabled: !t.enabled } : t) };
+                            setWizard(updated);
+                          }}
+                        >
+                          {at.enabled
+                            ? <ToggleRight className="w-7 h-7 text-[#c9a96e]" />
+                            : <ToggleLeft  className="w-7 h-7 text-[#64748b]" />}
+                        </button>
+                      </div>
+                      <input
+                        value={at.description}
+                        onChange={(e) => {
+                          const updated = { ...activeWizard, activityTypes: activeWizard.activityTypes.map((t) => t.id === at.id ? { ...t, description: e.target.value } : t) };
+                          setWizard(updated);
+                        }}
+                        className="w-full bg-transparent border-b border-[#c9a96e]/10 text-[#94a3b8] text-xs focus:outline-none focus:border-[#c9a96e]/30"
+                      />
+
+                      {/* Activities list */}
+                      {expandedType === at.id && (
+                        <div className="pt-3 space-y-2">
+                          <p className="text-xs text-[#64748b] mb-2">Activities under {at.title}:</p>
+                          {((activeWizard.activities as Record<string, { id: string; label: string }[]>)[at.id] ?? []).map((act, idx) => (
+                            <div key={act.id} className="flex items-center gap-2">
+                              <input
+                                value={act.label}
+                                onChange={(e) => {
+                                  const acts = ((activeWizard.activities as Record<string, { id: string; label: string }[]>)[at.id] ?? []).map((a, i) => i === idx ? { ...a, label: e.target.value } : a);
+                                  setWizard({ ...activeWizard, activities: { ...activeWizard.activities, [at.id]: acts } });
+                                }}
+                                className="flex-1 bg-[#0f1f3d] border border-[#c9a96e]/10 text-[#f0f0f0] text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-[#c9a96e]/30"
+                              />
+                              <button
+                                onClick={() => {
+                                  const acts = ((activeWizard.activities as Record<string, { id: string; label: string }[]>)[at.id] ?? []).filter((_, i) => i !== idx);
+                                  setWizard({ ...activeWizard, activities: { ...activeWizard.activities, [at.id]: acts } });
+                                }}
+                                className="text-[#ef4444]/60 hover:text-[#ef4444] transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                          {/* Add new activity */}
+                          <div className="flex items-center gap-2 mt-2">
+                            <input
+                              placeholder="New activity name..."
+                              value={newActivity[at.id] ?? ""}
+                              onChange={(e) => setNewActivity((p) => ({ ...p, [at.id]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && newActivity[at.id]?.trim()) {
+                                  const label = newActivity[at.id].trim();
+                                  const id = label.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+                                  const acts = [...(activeWizard.activities[at.id] ?? []), { id, label }];
+                                  setWizard({ ...activeWizard, activities: { ...activeWizard.activities, [at.id]: acts } });
+                                  setNewActivity((p) => ({ ...p, [at.id]: "" }));
+                                }
+                              }}
+                              className="flex-1 bg-[#0f1f3d] border border-dashed border-[#c9a96e]/20 text-[#f0f0f0] text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-[#c9a96e]/40 placeholder-[#64748b]"
+                            />
+                            <button
+                              onClick={() => {
+                                const label = (newActivity[at.id] ?? "").trim();
+                                if (!label) return;
+                                const id = label.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+                                const acts = [...(activeWizard.activities[at.id] ?? []), { id, label }];
+                                setWizard({ ...activeWizard, activities: { ...activeWizard.activities, [at.id]: acts } });
+                                setNewActivity((p) => ({ ...p, [at.id]: "" }));
+                              }}
+                              className="p-2 bg-[#c9a96e]/10 text-[#c9a96e] rounded-lg hover:bg-[#c9a96e]/20 transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add new activity type */}
+                  <button
+                    onClick={() => {
+                      const id = `custom_${Date.now()}`;
+                      const updated = {
+                        ...activeWizard,
+                        activityTypes: [...activeWizard.activityTypes, { id, title: "New Type", description: "Description", enabled: true }],
+                        activities: { ...activeWizard.activities, [id]: [] },
+                      };
+                      setWizard(updated);
+                      setExpandedType(id);
+                    }}
+                    className="flex items-center gap-2 text-sm text-[#c9a96e] hover:text-[#d4b87a] mt-2"
+                  >
+                    <Plus className="w-4 h-4" /> Add Activity Type
+                  </button>
+                </div>
+              </div>
+
+              {/* Legal Structures */}
+              <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-[#f0f0f0] mb-4">Legal Structures</h2>
+                <div className="space-y-2">
+                  {activeWizard.legalStructures.map((ls) => (
+                    <div key={ls.id} className="flex items-center justify-between p-3 bg-[#0a1628] rounded-lg border border-[#c9a96e]/8">
+                      <div className="flex-1 space-y-1 mr-4">
+                        <input
+                          value={ls.title}
+                          onChange={(e) => {
+                            const updated = { ...activeWizard, legalStructures: activeWizard.legalStructures.map((l) => l.id === ls.id ? { ...l, title: e.target.value } : l) };
+                            setWizard(updated);
+                          }}
+                          className="bg-transparent border-b border-[#c9a96e]/20 text-[#f0f0f0] text-sm font-medium focus:outline-none w-full"
+                        />
+                        <input
+                          value={ls.description}
+                          onChange={(e) => {
+                            const updated = { ...activeWizard, legalStructures: activeWizard.legalStructures.map((l) => l.id === ls.id ? { ...l, description: e.target.value } : l) };
+                            setWizard(updated);
+                          }}
+                          className="bg-transparent border-b border-[#c9a96e]/10 text-[#64748b] text-xs focus:outline-none w-full"
+                        />
+                      </div>
+                      <button onClick={() => {
+                        const updated = { ...activeWizard, legalStructures: activeWizard.legalStructures.map((l) => l.id === ls.id ? { ...l, enabled: !l.enabled } : l) };
+                        setWizard(updated);
+                      }}>
+                        {ls.enabled ? <ToggleRight className="w-7 h-7 text-[#c9a96e]" /> : <ToggleLeft className="w-7 h-7 text-[#64748b]" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Partner Options */}
+              <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-[#f0f0f0] mb-4">Partner / Shareholder Options</h2>
+                <div className="space-y-2">
+                  {activeWizard.partnerOptions.map((po) => (
+                    <div key={po.id} className="flex items-center justify-between p-3 bg-[#0a1628] rounded-lg border border-[#c9a96e]/8">
+                      <input
+                        value={po.label}
+                        onChange={(e) => {
+                          const updated = { ...activeWizard, partnerOptions: activeWizard.partnerOptions.map((p) => p.id === po.id ? { ...p, label: e.target.value } : p) };
+                          setWizard(updated);
+                        }}
+                        className="bg-transparent border-b border-[#c9a96e]/20 text-[#f0f0f0] text-sm focus:outline-none"
+                      />
+                      <button onClick={() => {
+                        const updated = { ...activeWizard, partnerOptions: activeWizard.partnerOptions.map((p) => p.id === po.id ? { ...p, enabled: !p.enabled } : p) };
+                        setWizard(updated);
+                      }}>
+                        {po.enabled ? <ToggleRight className="w-7 h-7 text-[#c9a96e]" /> : <ToggleLeft className="w-7 h-7 text-[#64748b]" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Office Types */}
+              <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-[#f0f0f0] mb-4">Office Types</h2>
+                <div className="space-y-2">
+                  {activeWizard.officeTypes.map((ot) => (
+                    <div key={ot.id} className="flex items-center justify-between p-3 bg-[#0a1628] rounded-lg border border-[#c9a96e]/8">
+                      <div className="flex-1 space-y-1 mr-4">
+                        <input
+                          value={ot.label}
+                          onChange={(e) => {
+                            const updated = { ...activeWizard, officeTypes: activeWizard.officeTypes.map((o) => o.id === ot.id ? { ...o, label: e.target.value } : o) };
+                            setWizard(updated);
+                          }}
+                          className="bg-transparent border-b border-[#c9a96e]/20 text-[#f0f0f0] text-sm font-medium focus:outline-none w-full"
+                        />
+                        <input
+                          value={ot.desc}
+                          onChange={(e) => {
+                            const updated = { ...activeWizard, officeTypes: activeWizard.officeTypes.map((o) => o.id === ot.id ? { ...o, desc: e.target.value } : o) };
+                            setWizard(updated);
+                          }}
+                          className="bg-transparent border-b border-[#c9a96e]/10 text-[#64748b] text-xs focus:outline-none w-full"
+                        />
+                      </div>
+                      <button onClick={() => {
+                        const updated = { ...activeWizard, officeTypes: activeWizard.officeTypes.map((o) => o.id === ot.id ? { ...o, enabled: !o.enabled } : o) };
+                        setWizard(updated);
+                      }}>
+                        {ot.enabled ? <ToggleRight className="w-7 h-7 text-[#c9a96e]" /> : <ToggleLeft className="w-7 h-7 text-[#64748b]" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Save */}
+              <button
+                onClick={() => activeWizard && saveWizard.mutate(activeWizard)}
+                disabled={saveWizard.isPending || !activeWizard}
+                className="flex items-center gap-2 px-6 py-3 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-50 transition-colors"
+              >
+                {saveWizard.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {wizardSaved ? "Saved!" : "Save Wizard Config"}
+              </button>
             </div>
           )}
         </div>
