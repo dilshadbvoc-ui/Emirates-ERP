@@ -7,6 +7,7 @@ import { adminRouter } from "./admin.js";
 import { userRouter } from "./user.js";
 import { aiRouter } from "./ai.js";
 import { servicesRouter } from "./services.js";
+import { processRouter } from "./process.js";
 import { createRouter, publicQuery } from "./middleware.js";
 
 export const appRouter = createRouter({
@@ -20,6 +21,7 @@ export const appRouter = createRouter({
   user: userRouter,
   ai: aiRouter,
   services: servicesRouter,
+  process: processRouter,
 });
 
 export type AppRouter = typeof appRouter;

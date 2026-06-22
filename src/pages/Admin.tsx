@@ -45,7 +45,7 @@ const statusLabels: Record<string, string> = {
   rejected: "Rejected",
 };
 
-type Tab = "dashboard" | "applications" | "users" | "contacts" | "messages" | "pricing" | "wizard";
+type Tab = "dashboard" | "applications" | "users" | "contacts" | "messages" | "pricing" | "wizard" | "processes";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -114,6 +114,41 @@ export default function Admin() {
 
   const activeWizard = wizard ?? wizardData;
 
+  // ── Add User ──────────────────────────────────────────────────────────────
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUser, setNewUser] = useState({ fullName: "", email: "", username: "", password: "", role: "user" as "user" | "admin" });
+  const [addUserError, setAddUserError] = useState("");
+  const createUser = trpc.user.create.useMutation({
+    onSuccess: () => {
+      setShowAddUser(false);
+      setNewUser({ fullName: "", email: "", username: "", password: "", role: "user" });
+      setAddUserError("");
+      utils.user.list.invalidate();
+    },
+    onError: (e) => setAddUserError(e.message),
+  });
+  const deleteUser = trpc.user.delete.useMutation({
+    onSuccess: () => utils.user.list.invalidate(),
+  });
+  const utils = trpc.useUtils();
+
+  // ── Processes ─────────────────────────────────────────────────────────────
+  const { data: processesList, refetch: refetchProcesses } = trpc.process.list.useQuery(
+    undefined, { enabled: isAdmin && activeTab === "processes" }
+  );
+  const [showAddProcess, setShowAddProcess] = useState(false);
+  const [newProcess, setNewProcess] = useState({ name: "", slug: "", description: "" });
+  const [addProcessError, setAddProcessError] = useState("");
+  const [expandedProcessId, setExpandedProcessId] = useState<number | null>(null);
+  const [editingProcess, setEditingProcess] = useState<Record<number, { name: string; description: string; enabled: boolean; questions: { id: string; label: string; type: "text" | "single_choice" | "multi_choice"; required: boolean; options: string[]; order: number }[] }>>({});
+
+  const createProcess = trpc.process.create.useMutation({
+    onSuccess: () => { setShowAddProcess(false); setNewProcess({ name: "", slug: "", description: "" }); setAddProcessError(""); refetchProcesses(); },
+    onError: (e) => setAddProcessError(e.message),
+  });
+  const updateProcess = trpc.process.update.useMutation({ onSuccess: () => refetchProcesses() });
+  const deleteProcess = trpc.process.delete.useMutation({ onSuccess: () => refetchProcesses() });
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#0a1628] flex items-center justify-center">
@@ -148,6 +183,7 @@ export default function Admin() {
     { id: "messages",     label: "Messages",     icon: Send },
     { id: "pricing",      label: "Pricing",      icon: DollarSign },
     { id: "wizard",       label: "Wizard Config", icon: Settings },
+    { id: "processes",    label: "Processes",    icon: Plus },
   ];
 
   return (
@@ -332,45 +368,117 @@ export default function Admin() {
 
           {/* Users Tab */}
           {activeTab === "users" && (
-            <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left text-xs text-[#64748b] border-b border-[#c9a96e]/10">
-                      <th className="p-4">ID</th>
-                      <th className="p-4">Name</th>
-                      <th className="p-4">Email</th>
-                      <th className="p-4">Auth Type</th>
-                      <th className="p-4">Role</th>
-                      <th className="p-4">Joined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {usersList?.map((u) => (
-                      <tr key={`${u.authType}-${u.id}`} className="border-b border-[#c9a96e]/5 hover:bg-[#152238]">
-                        <td className="p-4 text-sm text-[#94a3b8]">{u.id}</td>
-                        <td className="p-4 text-sm text-[#f0f0f0]">{u.name || "N/A"}</td>
-                        <td className="p-4 text-sm text-[#94a3b8]">{u.email || "N/A"}</td>
-                        <td className="p-4">
-                          <span className="px-2 py-1 rounded-full text-xs bg-[#1e3a5f] text-[#94a3b8] capitalize">
-                            {u.authType}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <select
-                            value={u.role || "user"}
-                            onChange={(e) => updateRole.mutate({ id: u.id, role: e.target.value as "user" | "admin", authType: u.authType as "oauth" | "local" })}
-                            className="bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] rounded px-2 py-1 text-xs"
-                          >
-                            <option value="user">User</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </td>
-                        <td className="p-4 text-sm text-[#94a3b8]">{new Date(u.createdAt).toLocaleDateString()}</td>
-                      </tr>
+            <div className="space-y-4">
+              {/* Add User */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowAddUser((v) => !v)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] transition-colors text-sm"
+                >
+                  <Plus className="w-4 h-4" /> Add User
+                </button>
+              </div>
+
+              {showAddUser && (
+                <div className="bg-[#0f1f3d] border border-[#c9a96e]/20 rounded-2xl p-6 space-y-4">
+                  <h3 className="text-base font-semibold text-[#f0f0f0]">Create New User</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      { key: "fullName",  label: "Full Name",  type: "text",     placeholder: "Jane Smith" },
+                      { key: "email",     label: "Email",      type: "email",    placeholder: "jane@example.com" },
+                      { key: "username",  label: "Username",   type: "text",     placeholder: "janesmith" },
+                      { key: "password",  label: "Password",   type: "password", placeholder: "Min 6 characters" },
+                    ].map(({ key, label, type, placeholder }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-[#94a3b8] mb-1">{label}</label>
+                        <input
+                          type={type}
+                          placeholder={placeholder}
+                          value={newUser[key as keyof typeof newUser]}
+                          onChange={(e) => setNewUser((p) => ({ ...p, [key]: e.target.value }))}
+                          className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                        />
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#94a3b8] mb-1">Role</label>
+                    <select
+                      value={newUser.role}
+                      onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as "user" | "admin" }))}
+                      className="bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                    >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                  {addUserError && <p className="text-xs text-red-400">{addUserError}</p>}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        if (!newUser.fullName || !newUser.email || !newUser.username || !newUser.password) return;
+                        createUser.mutate(newUser);
+                      }}
+                      disabled={createUser.isPending}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-50 text-sm transition-colors"
+                    >
+                      {createUser.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Create User
+                    </button>
+                    <button onClick={() => setShowAddUser(false)} className="px-5 py-2.5 border border-[#c9a96e]/20 text-[#94a3b8] rounded-xl text-sm hover:border-[#c9a96e]/40 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-xs text-[#64748b] border-b border-[#c9a96e]/10">
+                        <th className="p-4">ID</th>
+                        <th className="p-4">Name</th>
+                        <th className="p-4">Email</th>
+                        <th className="p-4">Auth Type</th>
+                        <th className="p-4">Role</th>
+                        <th className="p-4">Joined</th>
+                        <th className="p-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usersList?.map((u) => (
+                        <tr key={`${u.authType}-${u.id}`} className="border-b border-[#c9a96e]/5 hover:bg-[#152238]">
+                          <td className="p-4 text-sm text-[#94a3b8]">{u.id}</td>
+                          <td className="p-4 text-sm text-[#f0f0f0]">{u.name || "N/A"}</td>
+                          <td className="p-4 text-sm text-[#94a3b8]">{u.email || "N/A"}</td>
+                          <td className="p-4">
+                            <span className="px-2 py-1 rounded-full text-xs bg-[#1e3a5f] text-[#94a3b8] capitalize">{u.authType}</span>
+                          </td>
+                          <td className="p-4">
+                            <select
+                              value={u.role || "user"}
+                              onChange={(e) => updateRole.mutate({ id: u.id, role: e.target.value as "user" | "admin", authType: u.authType as "oauth" | "local" })}
+                              className="bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] rounded px-2 py-1 text-xs"
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          </td>
+                          <td className="p-4 text-sm text-[#94a3b8]">{new Date(u.createdAt).toLocaleDateString()}</td>
+                          <td className="p-4">
+                            <button
+                              onClick={() => { if (confirm("Delete this user?")) deleteUser.mutate({ id: u.id, authType: u.authType as "oauth" | "local" }); }}
+                              className="text-[#ef4444]/60 hover:text-[#ef4444] transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -826,6 +934,249 @@ export default function Admin() {
                 {saveWizard.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {wizardSaved ? "Saved!" : "Save Wizard Config"}
               </button>
+            </div>
+          )}
+          {/* Processes Tab */}
+          {activeTab === "processes" && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowAddProcess((v) => !v)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] transition-colors text-sm"
+                >
+                  <Plus className="w-4 h-4" /> New Process
+                </button>
+              </div>
+
+              {showAddProcess && (
+                <div className="bg-[#0f1f3d] border border-[#c9a96e]/20 rounded-2xl p-6 space-y-4">
+                  <h3 className="text-base font-semibold text-[#f0f0f0]">Create New Process</h3>
+                  <p className="text-xs text-[#64748b]">A process is a named wizard flow (e.g. "Freezone License", "Offshore Setup"). Each has its own activities, pricing, and custom questions.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[#94a3b8] mb-1">Process Name <span className="text-[#c9a96e]">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Freezone License"
+                        value={newProcess.name}
+                        onChange={(e) => {
+                          const name = e.target.value;
+                          const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+                          setNewProcess((p) => ({ ...p, name, slug }));
+                        }}
+                        className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#94a3b8] mb-1">Slug <span className="text-[#c9a96e]">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="e.g. freezone-license"
+                        value={newProcess.slug}
+                        onChange={(e) => setNewProcess((p) => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
+                        className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#94a3b8] mb-1">Description</label>
+                    <input
+                      type="text"
+                      placeholder="Short description for customers"
+                      value={newProcess.description}
+                      onChange={(e) => setNewProcess((p) => ({ ...p, description: e.target.value }))}
+                      className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] placeholder-[#64748b] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                    />
+                  </div>
+                  {addProcessError && <p className="text-xs text-red-400">{addProcessError}</p>}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        if (!newProcess.name || !newProcess.slug) return;
+                        createProcess.mutate(newProcess);
+                      }}
+                      disabled={createProcess.isPending}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-50 text-sm"
+                    >
+                      {createProcess.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Create Process
+                    </button>
+                    <button onClick={() => setShowAddProcess(false)} className="px-5 py-2.5 border border-[#c9a96e]/20 text-[#94a3b8] rounded-xl text-sm hover:border-[#c9a96e]/40 transition-colors">Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {processesList?.length === 0 && (
+                  <div className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl p-10 text-center">
+                    <Settings className="w-10 h-10 text-[#c9a96e]/20 mx-auto mb-3" />
+                    <p className="text-sm text-[#94a3b8]">No processes yet. Create one above.</p>
+                  </div>
+                )}
+
+                {processesList?.map((proc) => {
+                  const isExpanded = expandedProcessId === proc.id;
+                  const ep = editingProcess[proc.id] ?? { name: proc.name, description: proc.description ?? "", enabled: proc.enabled ?? true, questions: [] };
+
+                  return (
+                    <div key={proc.id} className="bg-[#0f1f3d] border border-[#c9a96e]/10 rounded-2xl overflow-hidden">
+                      {/* Process header */}
+                      <div className="flex items-center justify-between p-5">
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => setExpandedProcessId(isExpanded ? null : proc.id)} className="text-[#94a3b8] hover:text-[#f0f0f0]">
+                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          </button>
+                          <div>
+                            <p className="text-sm font-semibold text-[#f0f0f0]">{proc.name}</p>
+                            <p className="text-xs text-[#64748b]">/{proc.slug}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2 py-1 rounded-full text-xs ${proc.enabled ? "bg-[#22c55e]/20 text-[#4ade80]" : "bg-[#64748b]/20 text-[#94a3b8]"}`}>
+                            {proc.enabled ? "Active" : "Disabled"}
+                          </span>
+                          <button
+                            onClick={() => updateProcess.mutate({ id: proc.id, enabled: !proc.enabled })}
+                            className="text-[#94a3b8] hover:text-[#f0f0f0]"
+                          >
+                            {proc.enabled ? <ToggleRight className="w-6 h-6 text-[#c9a96e]" /> : <ToggleLeft className="w-6 h-6 text-[#64748b]" />}
+                          </button>
+                          <button
+                            onClick={() => { if (confirm(`Delete process "${proc.name}"?`)) deleteProcess.mutate({ id: proc.id }); }}
+                            className="text-[#ef4444]/60 hover:text-[#ef4444] transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expanded editor */}
+                      {isExpanded && (
+                        <div className="border-t border-[#c9a96e]/10 p-5 space-y-5">
+                          {/* Name & Description */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs text-[#94a3b8] mb-1">Name</label>
+                              <input
+                                value={ep.name}
+                                onChange={(e) => setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, name: e.target.value } }))}
+                                className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-[#94a3b8] mb-1">Description</label>
+                              <input
+                                value={ep.description}
+                                onChange={(e) => setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, description: e.target.value } }))}
+                                className="w-full bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Custom Questions */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-[#f0f0f0] mb-3">Custom Questions</h4>
+                            <p className="text-xs text-[#64748b] mb-3">Add questions that appear in the wizard for this process after the standard steps.</p>
+                            <div className="space-y-3">
+                              {ep.questions.map((q, qi) => (
+                                <div key={q.id} className="bg-[#0a1628] rounded-xl p-4 space-y-3 border border-[#c9a96e]/8">
+                                  <div className="flex items-center justify-between">
+                                    <input
+                                      value={q.label}
+                                      onChange={(e) => {
+                                        const qs = ep.questions.map((x, i) => i === qi ? { ...x, label: e.target.value } : x);
+                                        setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, questions: qs } }));
+                                      }}
+                                      placeholder="Question text"
+                                      className="flex-1 bg-transparent border-b border-[#c9a96e]/20 text-[#f0f0f0] text-sm focus:outline-none mr-4"
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        const qs = ep.questions.filter((_, i) => i !== qi);
+                                        setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, questions: qs } }));
+                                      }}
+                                      className="text-[#ef4444]/60 hover:text-[#ef4444]"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <select
+                                      value={q.type}
+                                      onChange={(e) => {
+                                        const qs = ep.questions.map((x, i) => i === qi ? { ...x, type: e.target.value as "text" | "single_choice" | "multi_choice" } : x);
+                                        setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, questions: qs } }));
+                                      }}
+                                      className="bg-[#0f1f3d] border border-[#c9a96e]/15 text-[#f0f0f0] rounded-lg px-3 py-1.5 text-xs"
+                                    >
+                                      <option value="text">Text Input</option>
+                                      <option value="single_choice">Single Choice</option>
+                                      <option value="multi_choice">Multi Choice</option>
+                                    </select>
+                                    <label className="flex items-center gap-2 text-xs text-[#94a3b8]">
+                                      <input
+                                        type="checkbox"
+                                        checked={q.required}
+                                        onChange={(e) => {
+                                          const qs = ep.questions.map((x, i) => i === qi ? { ...x, required: e.target.checked } : x);
+                                          setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, questions: qs } }));
+                                        }}
+                                        className="accent-[#c9a96e]"
+                                      />
+                                      Required
+                                    </label>
+                                  </div>
+                                  {(q.type === "single_choice" || q.type === "multi_choice") && (
+                                    <div className="space-y-1.5">
+                                      <p className="text-xs text-[#64748b]">Options (one per line):</p>
+                                      <textarea
+                                        rows={3}
+                                        value={q.options?.join("\n") ?? ""}
+                                        onChange={(e) => {
+                                          const opts = e.target.value.split("\n").filter(Boolean);
+                                          const qs = ep.questions.map((x, i) => i === qi ? { ...x, options: opts } : x);
+                                          setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, questions: qs } }));
+                                        }}
+                                        placeholder={"Option A\nOption B\nOption C"}
+                                        className="w-full bg-[#0f1f3d] border border-[#c9a96e]/10 text-[#f0f0f0] text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-[#c9a96e]/30 resize-none"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+
+                              <button
+                                onClick={() => {
+                                  const q = { id: `q_${Date.now()}`, label: "", type: "text" as const, required: true, options: [], order: ep.questions.length };
+                                  setEditingProcess((p) => ({ ...p, [proc.id]: { ...ep, questions: [...ep.questions, q] } }));
+                                }}
+                                className="flex items-center gap-2 text-sm text-[#c9a96e] hover:text-[#d4b87a]"
+                              >
+                                <Plus className="w-4 h-4" /> Add Question
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Save button */}
+                          <button
+                            onClick={() => updateProcess.mutate({
+                              id: proc.id,
+                              name: ep.name,
+                              description: ep.description,
+                              config: { ...JSON.parse(proc.config ?? "{}"), customQuestions: ep.questions },
+                            })}
+                            disabled={updateProcess.isPending}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-[#c9a96e] text-[#0a1628] font-semibold rounded-xl hover:bg-[#d4b87a] disabled:opacity-50 text-sm transition-colors"
+                          >
+                            {updateProcess.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            Save Changes
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

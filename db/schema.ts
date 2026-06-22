@@ -112,3 +112,17 @@ export const services = mysqlTable("services", {
 export type Service = typeof services.$inferSelect;
 export type InsertService = typeof services.$inferInsert;
 
+// Wizard processes (named license flows, e.g. Mainland, Freezone, Offshore)
+export const processes = mysqlTable("processes", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  config: text("config").notNull(), // JSON: wizard steps/activities/pricing for this process
+  enabled: boolean("enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Process = typeof processes.$inferSelect;
+export type InsertProcess = typeof processes.$inferInsert;
+

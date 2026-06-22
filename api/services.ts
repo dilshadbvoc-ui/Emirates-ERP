@@ -11,6 +11,15 @@ const activityOptionSchema = z.object({
   label: z.string(),
 });
 
+const customQuestionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.enum(["text", "single_choice", "multi_choice"]),
+  required: z.boolean().default(true),
+  options: z.array(z.string()).optional(),
+  order: z.number(),
+});
+
 const wizardStepSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -45,6 +54,7 @@ const wizardConfigSchema = z.object({
     desc: z.string(),
     enabled: z.boolean(),
   })),
+  customQuestions: z.array(customQuestionSchema).default([]),
 });
 
 const pricingConfigSchema = z.object({
@@ -112,6 +122,7 @@ export const DEFAULT_WIZARD_CONFIG: z.infer<typeof wizardConfigSchema> = {
     { id: "physical", label: "Physical Office", desc: "Dedicated office space",          enabled: true },
     { id: "sharing",  label: "Sharing Office",  desc: "Shared workspace",               enabled: true },
   ],
+  customQuestions: [],
 };
 
 export const DEFAULT_PRICING_CONFIG: z.infer<typeof pricingConfigSchema> = {
