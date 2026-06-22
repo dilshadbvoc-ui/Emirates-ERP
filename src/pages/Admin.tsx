@@ -89,7 +89,7 @@ export default function Admin() {
   const { data: pricingData, refetch: refetchPricing } = trpc.services.getPricingConfig.useQuery(
     undefined, { enabled: isAdmin && activeTab === "pricing" }
   );
-  const [pricing, setPricing] = useState({ baseCost: 3414, englishNameFee: 2000, investorVisaFee: 4000, employmentVisaFee: 3000 });
+  const [pricing, setPricing] = useState({ baseCost: 3414, englishNameFee: 2000, investorVisaFee: 4000, employmentVisaFee: 3000, whatsappNumber: "971500000000" });
   const [pricingSaved, setPricingSaved] = useState(false);
   const savePricing = trpc.services.savePricingConfig.useMutation({
     onSuccess: () => { setPricingSaved(true); refetchPricing(); setTimeout(() => setPricingSaved(false), 2000); },
@@ -97,7 +97,7 @@ export default function Admin() {
 
   // Sync pricing state when data loads
   if (pricingData && pricing.baseCost === 3414 && pricingData.baseCost !== 3414) {
-    setPricing(pricingData);
+    setPricing({ ...pricingData, whatsappNumber: pricingData.whatsappNumber ?? "971500000000" });
   }
 
   // ── Wizard Config ─────────────────────────────────────────────────────────
@@ -649,6 +649,30 @@ export default function Admin() {
                     </div>
                   </div>
                 ))}
+
+                <div className="pt-2 border-t border-[#c9a96e]/10">
+                  <label className="block text-sm font-medium text-[#f0f0f0] mb-1">WhatsApp Number</label>
+                  <p className="text-xs text-[#64748b] mb-2">Include country code, no + or spaces (e.g. 971501234567)</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-[#25d366]">+</span>
+                    <input
+                      type="text"
+                      value={pricing.whatsappNumber}
+                      onChange={(e) => setPricing((p) => ({ ...p, whatsappNumber: e.target.value.replace(/\D/g, "") }))}
+                      className="w-48 bg-[#0a1628] border border-[#c9a96e]/15 text-[#f0f0f0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#c9a96e]/40"
+                    />
+                  </div>
+                  {pricing.whatsappNumber && (
+                    <a
+                      href={`https://wa.me/${pricing.whatsappNumber}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-[#25d366] mt-2 hover:underline"
+                    >
+                      Preview: wa.me/{pricing.whatsappNumber}
+                    </a>
+                  )}
+                </div>
 
                 <div className="pt-2 border-t border-[#c9a96e]/10">
                   <div className="flex items-center justify-between text-sm text-[#94a3b8] mb-1">

@@ -62,6 +62,7 @@ const pricingConfigSchema = z.object({
   englishNameFee: z.number(),
   investorVisaFee: z.number(),
   employmentVisaFee: z.number(),
+  whatsappNumber: z.string().default(""),
 });
 
 // ─── Default configs ──────────────────────────────────────────────────────────
@@ -130,6 +131,7 @@ export const DEFAULT_PRICING_CONFIG: z.infer<typeof pricingConfigSchema> = {
   englishNameFee: 2000,
   investorVisaFee: 4000,
   employmentVisaFee: 3000,
+  whatsappNumber: "971500000000",
 };
 
 // ─── Router ───────────────────────────────────────────────────────────────────
